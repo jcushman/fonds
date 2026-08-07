@@ -49,6 +49,7 @@ local/
 .github-token
 .venv/
 __pycache__/
+.DS_Store
 """
 
 README = """\
