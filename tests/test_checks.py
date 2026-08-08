@@ -61,3 +61,44 @@ def test_public_repo_with_pages_is_fine(tmp_path):
         repos=repos(("site", False, True)),
     )
     assert _check_private_pages(ctx).ok
+
+
+# ---------------------------------------------------------------------------
+# Pending (not-yet-a-repo) directories
+# ---------------------------------------------------------------------------
+
+def test_pending_repos_are_reported_without_failing(tmp_path):
+    """Starting a directory before pushing it is the normal workflow, so this
+    reports but must not fail — yet it must never stay silent, since these are
+    the only things in the workspace with no copy anywhere else."""
+    from fonds.plugins.clone import _check_pending_repos
+
+    ws = workspace_with(tmp_path, 'owner = "jcushman"\n')
+    (tmp_path / "repos" / "real-repo" / ".git").mkdir(parents=True)
+    (tmp_path / "repos" / "wordscape").mkdir()
+
+    result = _check_pending_repos(Context(workspace=ws))
+    assert result.ok
+    assert "wordscape" in result.message
+    assert "real-repo" not in result.message
+
+
+def test_no_pending_dirs_when_all_are_checkouts(tmp_path):
+    from fonds.plugins.clone import _check_pending_repos
+
+    ws = workspace_with(tmp_path, 'owner = "jcushman"\n')
+    (tmp_path / "repos" / "a" / ".git").mkdir(parents=True)
+
+    result = _check_pending_repos(Context(workspace=ws))
+    assert result.ok
+    assert "every directory" in result.message
+
+
+def test_non_repo_dirs_ignores_dotfiles(tmp_path):
+    from fonds.git import non_repo_dirs
+
+    (tmp_path / "wordscape").mkdir()
+    (tmp_path / ".hidden").mkdir()
+    (tmp_path / "checkout" / ".git").mkdir(parents=True)
+
+    assert non_repo_dirs(tmp_path) == {"wordscape"}

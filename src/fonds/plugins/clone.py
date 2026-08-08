@@ -14,8 +14,14 @@ from pathlib import Path
 
 import click
 
-from ..api import Plugin
-from ..git import checkout_dirs, clone_or_update, delete_checkouts, hydrate_checkout
+from ..api import Check, CheckResult, Context, Plugin, ok
+from ..git import (
+    checkout_dirs,
+    clone_or_update,
+    delete_checkouts,
+    hydrate_checkout,
+    non_repo_dirs,
+)
 from ..selection import Selection, repo_options
 from ..table import read_table, row_tags
 
@@ -122,6 +128,14 @@ def clone(
         dest, {repo.dir_name for repo in repos}, "repo", delete_local_only
     )
 
+    # Not an error — this is how work usually starts here — but it is the only
+    # thing in the workspace that exists nowhere else, so always say so.
+    pending = sorted(non_repo_dirs(dest))
+    if pending:
+        click.echo(f"\n{len(pending)} director(ies) not yet a git repo (nothing pushed):")
+        for name in pending:
+            click.echo(f"  {name}")
+
     wiki_counts: Counter[str] = Counter()
     wiki_local_only = wiki_deleted = 0
     if wikis:
@@ -220,8 +234,28 @@ def hydrate(
     click.echo("\nDone: " + ", ".join(parts))
 
 
+def _check_pending_repos(ctx: Context) -> CheckResult:
+    """Surface directories that aren't repos yet.
+
+    Deliberately not a failure: starting a directory here before pushing it is
+    the normal workflow. But these have no remote, so nothing else in the
+    workspace would ever mention them.
+    """
+    pending = sorted(non_repo_dirs(ctx.workspace.repos_dir))
+    if pending:
+        return ok(f"{len(pending)} director(ies) not yet a repo: {', '.join(pending)}")
+    return ok("every directory in repos/ is a git checkout")
+
+
 PLUGIN = Plugin(
     name="clone",
     help="Clone and update the workspace's checkouts.",
     commands=(clone, hydrate),
+    checks=(
+        Check(
+            name="pending-repos",
+            run=_check_pending_repos,
+            help="Reports directories in repos/ that aren't git repos yet.",
+        ),
+    ),
 )

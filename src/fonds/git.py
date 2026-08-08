@@ -98,6 +98,22 @@ def checkout_dirs(dest: Path) -> set[str]:
     return {p.name for p in dest.iterdir() if p.is_dir() and (p / ".git").exists()}
 
 
+def non_repo_dirs(dest: Path) -> set[str]:
+    """Directories under *dest* that are not git checkouts at all.
+
+    Usually work started in the workspace that hasn't been turned into a repo
+    yet. It is the one thing here with no copy anywhere else, so it should
+    never be silently skipped just because it has no `.git`.
+    """
+    if not dest.exists():
+        return set()
+    return {
+        p.name
+        for p in dest.iterdir()
+        if p.is_dir() and not (p / ".git").exists() and not p.name.startswith(".")
+    }
+
+
 def clone_or_update(
     name: str,
     clone_url: str,
